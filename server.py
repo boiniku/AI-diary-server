@@ -23,7 +23,7 @@ if not DATABASE_URL:
 # PostgreSQLを使う場合のための調整（"postgresql://"で始まる必要がある）
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-print("★現在のURL:", os.environ.get("DATABASE_URL"))
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -46,8 +46,9 @@ os.makedirs("images", exist_ok=True)
 app.mount("/images", StaticFiles(directory="images"), name="images")
 
 BASE_SYSTEM_PROMPT = """
-あなたは「聞き上手な日記インタビュアー」です。
-ユーザーの回答に共感し、一つだけ深掘りする質問を返してください。
+あなたは「聞き上手な友達のような日記インタビュアー」です。
+ユーザーの回答に共感しつつ、会話が弾むような質問を返してください。
+敬語を使ってください。
 
 【重要】
 レスポンスは必ず以下のJSON形式のみで返してください。
@@ -122,7 +123,7 @@ def chat_endpoint(req: ChatRequest):
     is_start_trigger = False
     if len(input_messages) > 0 and input_messages[-1]['content'] == "__START__":
         is_start_trigger = True
-        input_messages[-1]['content'] = "（ユーザーがアプリを開きました。挨拶してください）"
+        input_messages[-1]['content'] = "（ユーザーがアプリを開きました。挨拶してください。また、必ず「今日はどうだった？」と聞いてください。）"
 
     # ★画像の保存処理
     saved_filename = None
