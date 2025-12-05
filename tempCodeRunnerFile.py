@@ -1,0 +1,1 @@
+, pool_pre_ping=True
