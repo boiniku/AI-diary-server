@@ -8,8 +8,20 @@ from fastapi.staticfiles import StaticFiles # ★画像配信に必要
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, Column, Integer, String, Text
+from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import sessionmaker, declarative_base
+from passlib.context import CryptContext
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import jwt
+
+# Auth Config
+SECRET_KEY = os.environ.get("SECRET_KEY", "supersecretkey") # 本番では環境変数で設定推奨
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60 # 30日
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # 設定読み込み
 load_dotenv()
@@ -28,9 +40,17 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+class UserModel(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
 class DiaryModel(Base):
-    __tablename__ = "diaries"
-    date_id = Column(String, primary_key=True, index=True)
+    __tablename__ = "user_diaries" # テーブル名を変更してスキーマ不整合を回避（古いデータはdiariesに残る）
+    id = Column(Integer, primary_key=True, index=True) # IDを追加（主キー用）
+    user_id = Column(Integer, ForeignKey("users.id")) # ユーザー紐付け
+    date_id = Column(String, index=True) # date_idはユニークではなくなる（各ユーザーが同じ日付を持つため）
     messages_json = Column(Text, default="[]")
     emotion_score = Column(Integer, default=3)
     title = Column(String, default="")
@@ -70,15 +90,101 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     new_image: str | None = None # Base64データ
 
-def get_diary_by_date(db, date_str):
-    return db.query(DiaryModel).filter(DiaryModel.date_id == date_str).first()
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except jwt.PyJWTError:
+        raise credentials_exception
+    
+    db = SessionLocal()
+    user = db.query(UserModel).filter(UserModel.username == username).first()
+    db.close()
+    if user is None:
+        raise credentials_exception
+    return user
+
+def get_diary_by_date(db, user_id, date_str):
+    return db.query(DiaryModel).filter(DiaryModel.user_id == user_id, DiaryModel.date_id == date_str).first()
+
+# === Auth Endpoints ===
+
+@app.post("/register", response_model=Token)
+def register(user: UserCreate):
+    db = SessionLocal()
+    db_user = db.query(UserModel).filter(UserModel.username == user.username).first()
+    if db_user:
+        db.close()
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    new_user = UserModel(username=user.username, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    db.close()
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": new_user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/token", response_model=Token)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    db = SessionLocal()
+    user = db.query(UserModel).filter(UserModel.username == form_data.username).first()
+    db.close()
+    
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 # === エンドポイント ===
 
 @app.get("/calendar")
-def get_calendar_data():
+def get_calendar_data(current_user: UserModel = Depends(get_current_user)):
     db = SessionLocal()
-    diaries = db.query(DiaryModel).all()
+    diaries = db.query(DiaryModel).filter(DiaryModel.user_id == current_user.id).all()
     calendar_data = {}
     for diary in diaries:
         calendar_data[diary.date_id] = { "score": diary.emotion_score, "icon": diary.icon }
@@ -86,9 +192,9 @@ def get_calendar_data():
     return calendar_data
 
 @app.get("/history")
-def get_history(date_id: str = Query(..., description="YYYY-MM-DD")):
+def get_history(date_id: str = Query(..., description="YYYY-MM-DD"), current_user: UserModel = Depends(get_current_user)):
     db = SessionLocal()
-    diary = get_diary_by_date(db, date_id)
+    diary = get_diary_by_date(db, current_user.id, date_id)
     db.close()
     if diary:
         return { "messages": json.loads(diary.messages_json), "title": diary.title, "icon": diary.icon }
@@ -96,7 +202,7 @@ def get_history(date_id: str = Query(..., description="YYYY-MM-DD")):
         return {"messages": [], "title": "", "icon": ""}
 
 @app.post("/chat")
-def chat_endpoint(req: ChatRequest):
+def chat_endpoint(req: ChatRequest, current_user: UserModel = Depends(get_current_user)):
     target_date_str = req.date_id
     
     # 昨日の文脈取得
@@ -104,7 +210,7 @@ def chat_endpoint(req: ChatRequest):
     yesterday_str = (target_date_obj - timedelta(days=1)).strftime('%Y-%m-%d')
     
     db = SessionLocal()
-    yesterday_diary = get_diary_by_date(db, yesterday_str)
+    yesterday_diary = get_diary_by_date(db, current_user.id, yesterday_str)
     
     yesterday_context = ""
     if yesterday_diary:
@@ -177,7 +283,7 @@ def chat_endpoint(req: ChatRequest):
     icon = ai_data.get("icon", "📝") 
 
     # 保存処理
-    diary = get_diary_by_date(db, target_date_str)
+    diary = get_diary_by_date(db, current_user.id, target_date_str)
     current_history = json.loads(diary.messages_json) if diary else []
 
     if is_start_trigger:
@@ -197,7 +303,9 @@ def chat_endpoint(req: ChatRequest):
         diary.title = title
         diary.icon = icon
     else:
+
         new_diary = DiaryModel(
+            user_id=current_user.id, # ユーザーIDを設定
             date_id=target_date_str,
             messages_json=json.dumps(updated_messages, ensure_ascii=False),
             emotion_score=emotion_score,
@@ -212,11 +320,11 @@ def chat_endpoint(req: ChatRequest):
     return {"reply": ai_text, "title": title, "icon": icon}
 
 @app.put("/history")
-def update_history(req: ChatRequest):
+def update_history(req: ChatRequest, current_user: UserModel = Depends(get_current_user)):
     target_date = req.date_id
     new_messages = [m.model_dump() for m in req.messages]
     db = SessionLocal()
-    diary = get_diary_by_date(db, target_date)
+    diary = get_diary_by_date(db, current_user.id, target_date)
     if diary:
         diary.messages_json = json.dumps(new_messages, ensure_ascii=False)
         db.commit()
