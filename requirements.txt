@@ -59,7 +59,7 @@ numpy==2.3.3
 openai==2.8.1
 packaging==25.0
 pandas==2.3.3
-passlib[bcrypt]==1.7.4
+passlib==1.7.4
 pillow==11.3.0
 postgrest==2.24.0
 propcache==0.4.1
