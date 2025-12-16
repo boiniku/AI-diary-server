@@ -341,4 +341,18 @@ def update_history(req: ChatRequest, current_user: UserModel = Depends(get_curre
         return {"status": "updated"}
     else:
         db.close()
-        return {"status": "error"}
+@app.delete("/delete_account")
+def delete_account(current_user: UserModel = Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        # ユーザーの日記を全て削除
+        db.query(DiaryModel).filter(DiaryModel.user_id == current_user.id).delete()
+        # ユーザー自身を削除
+        db.query(UserModel).filter(UserModel.id == current_user.id).delete()
+        db.commit()
+        return {"status": "deleted"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
