@@ -1,0 +1,13 @@
+Running 17 checks on your project...
+16/17 checks passed. 1 checks failed. Possible issues detected:
+Use the --verbose flag to see more details about passed checks.
+
+笨・Check that no duplicate dependencies are installed
+Your project contains duplicate native module dependencies, which should be de-duplicated.
+Native builds may only contain one version of any given native module, and having multiple versions of a single Native module installed may lead to unexpected build errors.
+Found duplicates for react-native-safe-area-context:
+  笏懌楳 react-native-safe-area-context@5.6.2 (at: node_modules\react-native-safe-area-context)
+  笏披楳 react-native-safe-area-context@4.5.0 (at: node_modules\react-native-calendars\node_modules\react-native-safe-area-context)
+Advice:
+Resolve your dependency issues and deduplicate your dependencies. Learn more: https://expo.fyi/resolving-dependency-issues
+

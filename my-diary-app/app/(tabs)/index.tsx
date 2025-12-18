@@ -2,7 +2,7 @@ import { StyleSheet, View, Text, SafeAreaView, Platform } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { router, useFocusEffect } from 'expo-router';
 import { useState, useCallback } from 'react';
-import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 LocaleConfig.locales['jp'] = {
@@ -13,12 +13,13 @@ LocaleConfig.locales['jp'] = {
 };
 LocaleConfig.defaultLocale = 'jp';
 
-// iOS用本番ID: ca-app-pub-4541342273103383/9735812807
-// Android用テストID: ca-app-pub-3940256099942544/6300978111
-const adUnitId = Platform.select({
-  ios: 'ca-app-pub-4541342273103383/9735812807',
-  android: 'ca-app-pub-3940256099942544/6300978111',
-}) ?? 'ca-app-pub-3940256099942544/6300978111';
+// 開発中(__DEV__)はテストIDを使い、本番ビルド時のみ本番IDを使うように切り替えます
+const adUnitId = __DEV__
+  ? TestIds.BANNER
+  : (Platform.select({
+    ios: 'ca-app-pub-4541342273103383/9735812807',
+    android: 'ca-app-pub-3940256099942544/6300978111',
+  }) ?? TestIds.BANNER);
 
 export default function CalendarScreen() {
   const SERVER_URL = 'https://ai-diary-server.onrender.com';
