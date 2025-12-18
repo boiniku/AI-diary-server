@@ -41,7 +41,7 @@ export default function CalendarScreen() {
         }
       });
       const data = await response.json();
-      const newMarkedDates = {};
+      const newMarkedDates: Record<string, any> = {};
       Object.keys(data).forEach(date => {
         const item = data[date];
         const score = (typeof item === 'object') ? item.score : item;

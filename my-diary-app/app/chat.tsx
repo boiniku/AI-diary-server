@@ -10,16 +10,24 @@ export default function ChatScreen() {
   const SERVER_URL = 'https://ai-diary-server.onrender.com';
   // ===========================================
 
+  // 型定義
+  type Message = {
+    role: string;
+    content: string;
+    image?: string;
+    temp_image_uri?: string | null;
+  };
+
   const { date } = useLocalSearchParams();
   const targetDate = date ? String(date) : new Date().toISOString().split('T')[0];
 
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [diaryTitle, setDiaryTitle] = useState(targetDate);
 
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [imageBase64, setImageBase64] = useState(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
 
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingIndex, setEditingIndex] = useState(-1);
@@ -76,7 +84,7 @@ export default function ChatScreen() {
     });
     if (!result.canceled) {
       setSelectedImage(result.assets[0].uri);
-      setImageBase64(result.assets[0].base64);
+      setImageBase64(result.assets[0].base64 ?? null);
     }
   };
 
@@ -126,7 +134,8 @@ export default function ChatScreen() {
   };
 
   // ... (メニュー操作系) ...
-  const openMenu = (index, content) => { if (messages[index].role === 'user') { setEditingIndex(index); setEditingText(content); setEditModalVisible(true); } };
+  // ... (メニュー操作系) ...
+  const openMenu = (index: number, content: string) => { if (messages[index].role === 'user') { setEditingIndex(index); setEditingText(content); setEditModalVisible(true); } };
   const saveEdit = async () => {
     const updatedMessages = [...messages]; updatedMessages[editingIndex].content = editingText;
     setMessages(updatedMessages); setEditModalVisible(false); await syncToServer(updatedMessages);
@@ -141,7 +150,7 @@ export default function ChatScreen() {
       }
     }]);
   };
-  const syncToServer = async (newMessages) => {
+  const syncToServer = async (newMessages: Message[]) => {
     try {
       const token = await AsyncStorage.getItem('userToken');
       await fetch(`${SERVER_URL}/history`, {
@@ -156,7 +165,7 @@ export default function ChatScreen() {
   };
 
   // ★ここが表示のキモ！
-  const renderItem = ({ item, index }) => {
+  const renderItem = ({ item, index }: { item: Message; index: number }) => {
     const isUser = item.role === 'user';
 
     // 画像URLの決定

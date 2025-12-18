@@ -50,7 +50,7 @@ export default function RootLayout() {
       {/* タブ画面（カレンダー） */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       {/* 日記画面（戻るボタンなどのタイトル設定） */}
-      <Stack.Screen name="chat" options={{ title: '日記', headerBackTitleVisible: false }} />
+      <Stack.Screen name="chat" options={{ title: '日記' }} />
       {/* ログイン画面 */}
       <Stack.Screen name="auth/login" options={{ headerShown: false }} />
     </Stack>
