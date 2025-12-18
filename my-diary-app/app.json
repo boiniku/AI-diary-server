@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "Kiku。",
+    "slug": "my-diary-app",
+    "version": "1.0.3",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "mydiaryapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.Kyotaro.aidiary",
+      "buildNumber": "8",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "com.google.android.gms.permission.AD_ID",
+        "com.google.android.gms.permission.AD_ID"
+      ],
+      "package": "com.Kyotaro.aidiary"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-4541342273103383~4645716771",
+          "iosAppId": "ca-app-pub-4541342273103383~4645716771",
+          "userTrackingUsageDescription": "あなたの好みに合わせた広告を表示するために使用します。"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "expo-tracking-transparency",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "日記に写真を添付するために、端末の写真ライブラリにアクセスします。選択した写真は日記と一緒に保存されます。",
+          "cameraPermission": "日記に記録する写真を撮影するためにカメラを使用します。例えば、その日の出来事や食べた料理などを撮影し、日記の一部として保存するために利用されます。"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6243b4aa-ad06-452f-92c3-b124465b5540"
+      }
+    }
+  }
+}
