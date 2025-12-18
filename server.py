@@ -5,6 +5,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles # ★画像配信に必要
+from fastapi.responses import FileResponse # 追加
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -18,7 +19,7 @@ import jwt
 # Auth Config
 SECRET_KEY = os.environ.get("SECRET_KEY", "supersecretkey") # 本番では環境変数で設定推奨
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60 # 30日
+ACCESS_TOKEN_EXPIRE_MINUTES = 3 * 24 * 60 # 3日間
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -58,7 +59,13 @@ class DiaryModel(Base):
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+# ドキュメント表示制御
+SHOW_DOCS = os.environ.get("SHOW_DOCS", "false").lower() == "true"
+app = FastAPI(docs_url="/docs" if SHOW_DOCS else None, redoc_url="/redoc" if SHOW_DOCS else None)
+
+@app.get("/app-ads.txt")
+def serve_ads_txt():
+    return FileResponse("app-ads.txt")
 
 # ★重要：画像を保存する「images」フォルダを公開設定にする
 # これで http://IPアドレス:8000/images/ファイル名.jpg でアクセスできるようになる
