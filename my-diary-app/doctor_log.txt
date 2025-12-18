@@ -1,0 +1,32 @@
+Running 17 checks on your project...
+15/17 checks passed. 2 checks failed. Possible issues detected:
+Use the --verbose flag to see more details about passed checks.
+
+笨・Check that no duplicate dependencies are installed
+Your project contains duplicate native module dependencies, which should be de-duplicated.
+Native builds may only contain one version of any given native module, and having multiple versions of a single Native module installed may lead to unexpected build errors.
+Found duplicates for react-native-safe-area-context:
+  笏懌楳 react-native-safe-area-context@5.6.2 (at: node_modules\react-native-safe-area-context)
+  笏披楳 react-native-safe-area-context@4.5.0 (at: node_modules\react-native-calendars\node_modules\react-native-safe-area-context)
+Advice:
+Resolve your dependency issues and deduplicate your dependencies. Learn more: https://expo.fyi/resolving-dependency-issues
+
+笨・Check that packages match versions required by installed Expo SDK
+
+肌 Patch version mismatches
+package            expected  found    
+expo               ~54.0.29  54.0.27  
+expo-constants     ~18.0.12  18.0.11  
+expo-image-picker  ~17.0.10  17.0.9   
+expo-router        ~6.0.20   6.0.17   
+
+Changelogs:
+- expo-constants 竊・https://github.com/expo/expo/blob/sdk-54/packages/expo-constants/CHANGELOG.md
+- expo-image-picker 竊・https://github.com/expo/expo/blob/sdk-54/packages/expo-image-picker/CHANGELOG.md
+- expo-router 竊・https://github.com/expo/expo/blob/sdk-54/packages/expo-router/CHANGELOG.md
+
+4 packages out of date.
+Advice:
+Use 'npx expo install --check' to review and upgrade your dependencies.
+To ignore specific packages, add them to "expo.install.exclude" in package.json. Learn more: https://expo.fyi/dependency-validation
+
