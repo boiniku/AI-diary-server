@@ -2,7 +2,7 @@
   "expo": {
     "name": "カキダシ",
     "slug": "my-diary-app",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mydiaryapp",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.Kyotaro.aidiary",
-      "buildNumber": "10",
+      "buildNumber": "12",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
