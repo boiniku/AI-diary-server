@@ -348,9 +348,9 @@ def chat_endpoint(req: ChatRequest, current_user: UserModel = Depends(get_curren
 def generate_summary(req: SummaryRequest, current_user: UserModel = Depends(get_current_user)):
     db = SessionLocal()
     diary = get_diary_by_date(db, current_user.id, req.date_id)
-    db.close()
 
     if not diary:
+        db.close()
         raise HTTPException(status_code=404, detail="Diary not found")
 
     messages = json.loads(diary.messages_json)
@@ -364,9 +364,7 @@ def generate_summary(req: SummaryRequest, current_user: UserModel = Depends(get_
     prompt = f"""
     以下は今日のユーザーとの会話です。
     この会話の内容を元に、ユーザの一日を要約してください。
-    
-    また、日記の後に、AIからの「ポジティブで温かい励ましのメッセージ」を付け加えてください。
-    
+    また、日記の要約の後に、AIからの「ポジティブで温かい励ましのメッセージやポジティブなコメント」を付け加えてください。
     出力はJSON形式で、キーは "summary" としてください。
 
     【会話内容】
@@ -381,10 +379,19 @@ def generate_summary(req: SummaryRequest, current_user: UserModel = Depends(get_
             response_format={"type": "json_object"}
         )
         data = json.loads(response.choices[0].message.content)
-        return {"summary": data.get("summary", "お疲れ様でした！明日も良い一日になりますように。")}
+        summary_text = data.get("summary", "お疲れ様でした！明日も良い一日になりますように。")
+
+        # ★まとめをメッセージ履歴に追加して保存
+        updated_messages = messages + [{"role": "assistant", "content": summary_text}]
+        diary.messages_json = json.dumps(updated_messages, ensure_ascii=False)
+        db.commit()
+        
+        return {"summary": summary_text}
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to generate summary")
+    finally:
+        db.close()
 
 @app.put("/history")
 def update_history(req: ChatRequest, current_user: UserModel = Depends(get_current_user)):
