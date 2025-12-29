@@ -1,9 +1,22 @@
-import { StyleSheet, View, Text, SafeAreaView, Platform } from 'react-native';
+import { StyleSheet, View, Text, SafeAreaView, Platform, TouchableOpacity, Animated } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { router, useFocusEffect } from 'expo-router';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+
+// アニメーション付きボタン
+const TouchableScale = ({ onPress, children, style }: any) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  const onPressIn = () => Animated.spring(scale, { toValue: 0.95, useNativeDriver: true }).start();
+  const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+  return (
+    <TouchableOpacity onPressIn={onPressIn} onPressOut={onPressOut} onPress={onPress}>
+      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+    </TouchableOpacity>
+  );
+};
 
 LocaleConfig.locales['jp'] = {
   monthNames: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
@@ -102,6 +115,19 @@ export default function CalendarScreen() {
         <Text style={styles.legendText}>悲しい 😢</Text>
       </View>
 
+      <View style={styles.todayButtonContainer}>
+        <TouchableScale
+          style={styles.todayButton}
+          onPress={() => {
+            const today = new Date().toISOString().split('T')[0];
+            router.push({ pathname: '/chat', params: { date: today } });
+          }}
+        >
+          <Ionicons name="pencil" size={20} color="#fff" style={{ marginRight: 8 }} />
+          <Text style={styles.todayButtonText}>今日の日記を書く</Text>
+        </TouchableScale>
+      </View>
+
       <View style={styles.adContainer}>
         <BannerAd
           unitId={adUnitId}
@@ -133,5 +159,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
     width: '100%',
     paddingBottom: 20,
-  }
+  },
+  todayButtonContainer: { marginTop: 20, paddingHorizontal: 40, width: '100%', alignItems: 'center' },
+  todayButton: {
+    backgroundColor: '#5d4037', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3.84, elevation: 5
+  },
+  todayButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold', fontFamily: 'ZenMaruGothic' }
 });

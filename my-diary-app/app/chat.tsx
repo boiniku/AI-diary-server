@@ -16,6 +16,7 @@ export default function ChatScreen() {
     content: string;
     image?: string;
     temp_image_uri?: string | null;
+    timestamp?: string; // ★時刻追加
   };
 
   const { date } = useLocalSearchParams();
@@ -24,6 +25,7 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isTyping, setIsTyping] = useState(false); // ★タイピング状態
   const [diaryTitle, setDiaryTitle] = useState(targetDate);
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -46,6 +48,12 @@ export default function ChatScreen() {
       const response = await fetch(`${SERVER_URL}/history?date_id=${targetDate}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      if (response.status === 401) {
+        await AsyncStorage.removeItem('userToken');
+        Alert.alert("セッション切れ", "ログインし直してください");
+        return router.replace('/auth/login');
+      }
       const data = await response.json();
 
       if (data.title && data.icon) setDiaryTitle(`${data.icon} ${data.title}`);
@@ -70,6 +78,12 @@ export default function ChatScreen() {
         },
         body: JSON.stringify({ date_id: targetDate, messages: [startMessage] }),
       });
+
+      if (response.status === 401) {
+        await AsyncStorage.removeItem('userToken');
+        Alert.alert("セッション切れ", "ログインし直してください");
+        return router.replace('/auth/login');
+      }
       const data = await response.json();
       setMessages([{ role: 'assistant', content: data.reply }]);
       if (data.title && data.icon) setDiaryTitle(`${data.icon} ${data.title}`);
@@ -90,21 +104,64 @@ export default function ChatScreen() {
 
   const cancelImage = () => { setSelectedImage(null); setImageBase64(null); };
 
+  // ★会話終了機能
+  const endConversation = async () => {
+    Alert.alert("会話を終了しますか？", "今日のまとめと、AIからの励ましメッセージをもらいます。", [
+      { text: "キャンセル", style: "cancel" },
+      {
+        text: "終了する",
+        onPress: async () => {
+          try {
+            setIsTyping(true);
+            const token = await AsyncStorage.getItem('userToken');
+            const response = await fetch(`${SERVER_URL}/summary`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ date_id: targetDate }),
+            });
+
+            if (response.status === 401) {
+              await AsyncStorage.removeItem('userToken');
+              return router.replace('/auth/login');
+            }
+
+            const data = await response.json();
+            // まとめメッセージをシステムメッセージとして追加
+            const summaryMessage = { role: 'assistant', content: data.summary, timestamp: getCurrentTime() };
+            setMessages(prev => [...prev, summaryMessage]);
+            setIsTyping(false);
+          } catch (error) {
+            console.error(error);
+            setIsTyping(false);
+            Alert.alert("エラー", "まとめの取得に失敗しました");
+          }
+        }
+      }
+    ]);
+  };
+
+  const getCurrentTime = () => {
+    const now = new Date();
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  };
+
   const sendMessage = async () => {
     if (inputText.trim() === '' && !imageBase64) return;
 
     // ★送信直後の画面表示用（一時的なローカル画像）
-    const userMessage = {
+    const userMessage: Message = {
       role: 'user',
       content: inputText,
       // サーバー送信前は、ローカルのselectedImageを表示用に使う
-      temp_image_uri: selectedImage
+      temp_image_uri: selectedImage,
+      timestamp: getCurrentTime() // ★時刻記録
     };
 
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setInputText('');
     setSelectedImage(null);
+    setIsTyping(true); // ★タイピング開始
 
     try {
       const token = await AsyncStorage.getItem('userToken');
@@ -120,17 +177,24 @@ export default function ChatScreen() {
           new_image: imageBase64
         }),
       });
+
+      if (response.status === 401) {
+        await AsyncStorage.removeItem('userToken');
+        Alert.alert("セッション切れ", "ログインし直してください");
+        return router.replace('/auth/login');
+      }
       const data = await response.json();
 
       // ★サーバーから最新の履歴を取得しなおす（保存された画像URLを反映するため）
       // 簡易的に、AIの返事だけ追加するのではなく、fetchHistoryと同じ要領でリフレッシュする手もありますが、
       // ここではスムーズに見せるために「次のロード時」に正式な画像URLに切り替わります。
-      setMessages([...newMessages, { role: 'assistant', content: data.reply }]);
+      setMessages([...newMessages, { role: 'assistant', content: data.reply, timestamp: getCurrentTime() }]);
 
       if (data.title && data.icon) setDiaryTitle(`${data.icon} ${data.title}`);
       setImageBase64(null);
 
     } catch (error) { console.error(error); }
+    finally { setIsTyping(false); } // ★タイピング終了
   };
 
   // ... (メニュー操作系) ...
@@ -181,17 +245,23 @@ export default function ChatScreen() {
     if (isUser) {
       return (
         <TouchableOpacity onLongPress={() => openMenu(index, item.content)}>
-          <View style={styles.notebookLine}>
-            {/* 画像があれば表示 */}
-            {imageSource && <Image source={imageSource} style={styles.chatImage} />}
-            {item.content ? <Text style={styles.userText}>{item.content}</Text> : null}
+          <View style={{ alignItems: 'flex-end', marginBottom: 5 }}>
+            <View style={styles.notebookLine}>
+              {/* 画像があれば表示 */}
+              {imageSource && <Image source={imageSource} style={styles.chatImage} />}
+              {item.content ? <Text style={styles.userText}>{item.content}</Text> : null}
+            </View>
+            {item.timestamp && <Text style={styles.timestamp}>{item.timestamp}</Text>}
           </View>
         </TouchableOpacity>
       );
     } else {
       return (
-        <View style={styles.aiCommentBlock}>
-          <Text style={styles.aiText}>✍️ {item.content}</Text>
+        <View style={{ alignItems: 'flex-start', marginBottom: 15 }}>
+          <View style={styles.aiCommentBlock}>
+            <Text style={styles.aiText}>✍️ {item.content}</Text>
+          </View>
+          {item.timestamp && <Text style={styles.timestamp}>{item.timestamp}</Text>}
         </View>
       );
     }
@@ -199,10 +269,33 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ title: diaryTitle, headerStyle: { backgroundColor: '#fffdf5' }, headerShadowVisible: false, headerTitleStyle: { fontFamily: 'ZenMaruGothic', color: '#5d4037' } }} />
+      <Stack.Screen options={{
+        title: diaryTitle,
+        headerStyle: { backgroundColor: '#fffdf5' },
+        headerShadowVisible: false,
+        headerTitleStyle: { fontFamily: 'ZenMaruGothic', color: '#5d4037' },
+        headerRight: () => (
+          <TouchableOpacity onPress={endConversation} style={{ marginRight: 10 }}>
+            <Ionicons name="checkmark-done-circle-outline" size={28} color="#5d4037" />
+          </TouchableOpacity>
+        )
+      }} />
 
       {loading ? (<View style={styles.center}><ActivityIndicator size="large" color="#aaa" /></View>) : (
-        <FlatList data={messages} renderItem={renderItem} keyExtractor={(item, index) => index.toString()} contentContainerStyle={styles.noteList} />
+        <FlatList
+          data={messages}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => index.toString()}
+          contentContainerStyle={styles.noteList}
+          ListFooterComponent={
+            isTyping ? (
+              <View style={styles.typingContainer}>
+                <ActivityIndicator size="small" color="#aaa" />
+                <Text style={styles.typingText}>カキダシ中...</Text>
+              </View>
+            ) : null
+          }
+        />
       )}
 
       {selectedImage && (
@@ -281,4 +374,7 @@ const styles = StyleSheet.create({
   saveButton: { backgroundColor: '#333', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 20 },
   buttonText: { color: '#555', fontFamily: 'ZenMaruGothic' },
   saveButtonText: { color: '#fff', fontWeight: 'bold', fontFamily: 'ZenMaruGothic' },
+  timestamp: { fontSize: 10, color: '#999', marginTop: 2, marginHorizontal: 5, fontFamily: 'ZenMaruGothic' },
+  typingContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 10, marginLeft: 10 },
+  typingText: { marginLeft: 5, color: '#aaa', fontSize: 12, fontFamily: 'ZenMaruGothic' },
 });
