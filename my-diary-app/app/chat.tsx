@@ -274,11 +274,7 @@ export default function ChatScreen() {
         headerStyle: { backgroundColor: '#fffdf5' },
         headerShadowVisible: false,
         headerTitleStyle: { fontFamily: 'ZenMaruGothic', color: '#5d4037' },
-        headerRight: () => (
-          <TouchableOpacity onPress={endConversation} style={{ marginRight: 10 }}>
-            <Ionicons name="checkmark-done-circle-outline" size={28} color="#5d4037" />
-          </TouchableOpacity>
-        )
+        headerRight: undefined // ★ヘッダーボタン削除
       }} />
 
       {loading ? (<View style={styles.center}><ActivityIndicator size="large" color="#aaa" /></View>) : (
@@ -304,6 +300,14 @@ export default function ChatScreen() {
           <TouchableOpacity onPress={cancelImage} style={styles.closeButton}><Ionicons name="close-circle" size={24} color="#fff" /></TouchableOpacity>
         </View>
       )}
+
+      {/* ★会話終了ボタンをここに配置 */}
+      <View style={styles.endButtonContainer}>
+        <TouchableOpacity onPress={endConversation} style={styles.endButton}>
+          <Ionicons name="checkmark-circle-outline" size={20} color="#fff" style={{ marginRight: 5 }} />
+          <Text style={styles.endButtonText}>会話を終了してまとめを作成</Text>
+        </TouchableOpacity>
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -377,4 +381,7 @@ const styles = StyleSheet.create({
   timestamp: { fontSize: 10, color: '#999', marginTop: 2, marginHorizontal: 5, fontFamily: 'ZenMaruGothic' },
   typingContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 10, marginLeft: 10 },
   typingText: { marginLeft: 5, color: '#aaa', fontSize: 12, fontFamily: 'ZenMaruGothic' },
+  endButtonContainer: { alignItems: 'center', paddingBottom: 5, backgroundColor: '#fffdf5' },
+  endButton: { backgroundColor: '#8D6E63', flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20 },
+  endButtonText: { color: '#fff', fontSize: 14, fontFamily: 'ZenMaruGothic', fontWeight: 'bold' },
 });

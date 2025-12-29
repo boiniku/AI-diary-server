@@ -86,7 +86,7 @@ export default function CalendarScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Kiku</Text>
+        <Text style={styles.title}>カキダシ</Text>
       </View>
 
       <View style={styles.calendarContainer}>
