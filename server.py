@@ -1,4 +1,5 @@
 import os
+import traceback
 import json
 import base64
 import uuid
@@ -37,7 +38,7 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -283,20 +284,25 @@ def chat_endpoint(req: ChatRequest, current_user: UserModel = Depends(get_curren
 
     full_messages = [{"role": "system", "content": system_prompt}] + final_input_messages
     
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=full_messages,
-        temperature=0.7,
-        response_format={"type": "json_object"}
-    )
-    
-    ai_json_str = response.choices[0].message.content
-    ai_data = json.loads(ai_json_str)
-    
-    ai_text = ai_data.get("reply", "")
-    emotion_score = ai_data.get("emotion_score", 3)
-    title = ai_data.get("title", "") 
-    icon = ai_data.get("icon", "📝") 
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=full_messages,
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
+        
+        ai_json_str = response.choices[0].message.content
+        ai_data = json.loads(ai_json_str)
+        
+        ai_text = ai_data.get("reply", "")
+        emotion_score = ai_data.get("emotion_score", 3)
+        title = ai_data.get("title", "") 
+        icon = ai_data.get("icon", "📝")
+    except Exception as e:
+        print("Error in OpenAI call or processing:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e)) 
 
     # 保存処理
     diary = get_diary_by_date(db, current_user.id, target_date_str)
