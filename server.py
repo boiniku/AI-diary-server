@@ -344,6 +344,32 @@ def chat_endpoint(req: ChatRequest, current_user: UserModel = Depends(get_curren
 
     return {"reply": ai_text, "title": title, "icon": icon}
 
+@app.get("/search")
+def search_diaries(q: str = Query(..., min_length=1), current_user: UserModel = Depends(get_current_user)):
+    db = SessionLocal()
+    # シンプルなテキスト検索（JSON文字列の中にキーワードが含まれているか）
+    # 大文字小文字を区別しない検索 (ilike) はSQLAlchemyの標準ではないため、or_などの組み合わせが必要だが、
+    # ここではPython側でフィルタリングするか、またはSQLのLIKEを使う。
+    # SQLite/PostgreSQL両対応のため、containsを使用する（部分一致）
+    results = db.query(DiaryModel).filter(
+        DiaryModel.user_id == current_user.id,
+        DiaryModel.messages_json.contains(q)
+    ).all()
+    
+    found_entries = []
+    for diary in results:
+        # 日記の中身をデコードして、さらに内容を少しトリミングしてもいいが、
+        # ここでは日付とタイトル、感情スコアを返す
+        found_entries.append({
+            "date_id": diary.date_id,
+            "title": diary.title if diary.title else "無題の日記",
+            "score": diary.emotion_score,
+            "icon": diary.icon
+        })
+    
+    db.close()
+    return sorted(found_entries, key=lambda x: x['date_id'], reverse=True)
+
 @app.post("/summary")
 def generate_summary(req: SummaryRequest, current_user: UserModel = Depends(get_current_user)):
     db = SessionLocal()
@@ -355,16 +381,29 @@ def generate_summary(req: SummaryRequest, current_user: UserModel = Depends(get_
 
     messages = json.loads(diary.messages_json)
     
+    # ★改善点1: 直前のAIの発言（「他になにかありますか？」など）を削除
+    if messages and messages[-1]['role'] == 'assistant':
+        messages.pop()
+
     # 会話履歴をテキスト化
     context = ""
     for msg in messages:
         role = "ユーザー" if msg['role'] == "user" else "AI"
         context += f"{role}: {msg['content']}\n"
 
+    # ★改善点2: プロンプトの改善（感情的・寄り添い・締めの一言）
     prompt = f"""
-    以下は今日のユーザーとの会話です。
-    この会話の内容を元に、ユーザの一日を要約してください。
-    また、日記の要約の後に、AIからの「ポジティブで温かい励ましのメッセージやポジティブなコメント」を付け加えてください。
+    あなたはユーザーの親友であり、良き理解者です。
+    以下は今日のユーザーとの会話（日記）の内容です。
+    
+    この内容を元に、ユーザーの一日を振り返る「日記のまとめ」を書いてください。
+    
+    【ルール】
+    1. **感情豊かに、ユーザーに寄り添うトーン**で書いてください。事務的な要約は禁止です。
+    2. ユーザーが楽しかったことには一緒に喜び、悲しかったことには深く共感してください。
+    3. 文章の最後は、必ず「**明日もいい一日になりますように！**」や「**ゆっくり休んでね、また明日！**」のような、温かい労いの言葉で締めくくってください。
+    4. 「今日は〜がありました。」という客観描写よりも、「〜なことがあって大変だったね」「〜ですごく頑張ったね！」のような主観的な語りかけを優先してください。
+
     出力はJSON形式で、キーは "summary" としてください。
 
     【会話内容】
@@ -381,7 +420,7 @@ def generate_summary(req: SummaryRequest, current_user: UserModel = Depends(get_
         data = json.loads(response.choices[0].message.content)
         summary_text = data.get("summary", "お疲れ様でした！明日も良い一日になりますように。")
 
-        # ★まとめをメッセージ履歴に追加して保存
+        # ★まとめをメッセージ履歴に追加して保存（削除したAIメッセージはここには含まれないため、上書き保存で消える）
         updated_messages = messages + [{"role": "assistant", "content": summary_text}]
         diary.messages_json = json.dumps(updated_messages, ensure_ascii=False)
         db.commit()
@@ -406,6 +445,7 @@ def update_history(req: ChatRequest, current_user: UserModel = Depends(get_curre
         return {"status": "updated"}
     else:
         db.close()
+        return {"status": "not found"}
 @app.delete("/delete_account")
 def delete_account(current_user: UserModel = Depends(get_current_user)):
     db = SessionLocal()

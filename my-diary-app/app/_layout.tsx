@@ -30,6 +30,7 @@ export default function RootLayout() {
       }
       await mobileAds().initialize();
       console.log('✅ AdMob Initialized in _layout');
+      // console.log('✅ AdMob Initialized in _layout (SKIPPED)');
 
       // Auth Check
       const token = await AsyncStorage.getItem('userToken');
